@@ -729,6 +729,7 @@ void ProcessIO(void)
 {   
     BYTE numBytesRead;
     unsigned int adcval;
+    char tmpbuf[6], i;
 
     //Blink the LEDs according to the USB device status
     BlinkUSBStatus();
@@ -753,17 +754,27 @@ void ProcessIO(void)
 
     if(USBUSARTIsTxTrfReady())
     {
-		numBytesRead = getsUSBUSART(USB_Out_Buffer, 64);
+		//numBytesRead = getsUSBUSART(USB_Out_Buffer, 64);
+		USB_In_Buffer[0] = 0;
 		
-		ADCON0bits.GO=1;
-		while (ADCON0bits.GO);   // Wait conversion done
-
-		adcval = ADRESL;           // Get the 8 bit LSB result
-		adcval += (ADRESH << 8); // Get the 2 bit MSB result
+		ADCON0bits.ADON = 1; //enable ADC and wait for it to be ready   /* without enable/disable the results are weird */
+		for(i = 0; i < 60; i++); 
 		
-		itoa(adcval, USB_In_Buffer);
-		strcatpgm2ram(USB_In_Buffer, "\n");
+		for(i = 0; i < 12; i++)
+		{
+			ADCON0bits.GO=1;
+			while (ADCON0bits.GO);   // Wait conversion done
 
+			adcval = ADRESL;           // Get the 8 bit LSB result
+			adcval += (ADRESH << 8); // Get the 2 bit MSB result
+			
+			itoa(adcval, tmpbuf);
+			strcatpgm2ram(tmpbuf, "\n");
+			strcat(USB_In_Buffer, tmpbuf);
+		}
+		
+		ADCON0bits.ADON = 0; //disable ADC
+		
 		putsUSBUSART(USB_In_Buffer);
 	}
 
