@@ -697,6 +697,15 @@ void UserInit(void)
 
     //Initialize the pushbuttons
     mInitAllSwitches();
+    
+    //Initialize the ADC
+    TRISAbits.TRISA0 = 1; //Pin 2 as input
+    ADCON0 = 0b00000000; //AD channel AN0
+    ADCON1 = 0b00001110; //Vref+ = Vdd, Vref- = Vss, only AN0 is analog
+    ADCON2 = 0b10010010; //Right justified result, Acquisition time = 4 Tad, Conversion clock = Fosc / 64
+    
+    ADCON0bits.ADON = 1; //Enable ADC
+    
 }//end UserInit
 
 /********************************************************************
@@ -719,6 +728,7 @@ void UserInit(void)
 void ProcessIO(void)
 {   
     BYTE numBytesRead;
+    unsigned int adcval;
 
     //Blink the LEDs according to the USB device status
     BlinkUSBStatus();
@@ -743,28 +753,18 @@ void ProcessIO(void)
 
     if(USBUSARTIsTxTrfReady())
     {
-		numBytesRead = getsUSBUSART(USB_Out_Buffer,64);
-		if(numBytesRead != 0)
-		{
-			BYTE i;
-	        
-			for(i=0;i<numBytesRead;i++)
-			{
-				switch(USB_Out_Buffer[i])
-				{
-					case 0x0A:
-					case 0x0D:
-						USB_In_Buffer[i] = USB_Out_Buffer[i];
-						break;
-					default:
-						USB_In_Buffer[i] = USB_Out_Buffer[i] + 1;
-						break;
-				}
+		numBytesRead = getsUSBUSART(USB_Out_Buffer, 64);
+		
+		ADCON0bits.GO=1;
+		while (ADCON0bits.GO);   // Wait conversion done
 
-			}
+		adcval = ADRESL;           // Get the 8 bit LSB result
+		adcval += (ADRESH << 8); // Get the 2 bit MSB result
+		
+		itoa(adcval, USB_In_Buffer);
+		strcatpgm2ram(USB_In_Buffer, "\n");
 
-			putUSBUSART(USB_In_Buffer,numBytesRead);
-		}
+		putsUSBUSART(USB_In_Buffer);
 	}
 
     CDCTxService();
